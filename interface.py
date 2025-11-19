@@ -2,21 +2,26 @@ import noGui_app
 from tkinter import *
 from tkinter import ttk
 from tkinter import filedialog
+import threading
+import queue
 
 class Interface:
     def __init__(self):
         self.ChatWindow = Tk()
-        self.ChatWindow.title("LM studio chat")
+        self.AppName = "LM studio chat"
+        self.MessageStatus = "[Ожидание ответа агента...]"
+        self.ChatWindow.title(self.AppName)
         self.ScreenWidth = self.ChatWindow.winfo_screenwidth()
         self.ScreenHeight = self.ChatWindow.winfo_screenheight()
         self.AttachedFiles = []
+        self.queue = queue.Queue()
 
-        # Базовые размеры для расчета
+        ## Базовые размеры для расчета
         self.ChatWidthRatio = 0.8  
         self.ChatHeightRatio = 0.7 
         self.InputWidthRatio = 0.9
 
-        # Расчет размеров виджетов
+        ## Расчет размеров виджетов
         ChatWidth = int(self.ScreenWidth * self.ChatWidthRatio / 10)
         ChatHeight = int(self.ScreenHeight * self.ChatHeightRatio / 20)
         InputWidth = int(self.ScreenWidth * self.InputWidthRatio / 10)
@@ -26,7 +31,6 @@ class Interface:
         self.ScrollbarY = ttk.Scrollbar(self.ChatFrame, orient = "vertical", command = self.ChatBox.yview)
     
         self.StatusFrame = ttk.Frame(self.ChatWindow)
-        self.StatusLabel = ttk.Label(self.StatusFrame)
         
         self.InputFrame = ttk.Frame(self.ChatWindow)
         self.InputLine = ttk.Entry(self.InputFrame, width = InputWidth)
@@ -47,13 +51,15 @@ class Interface:
         
         ## Расстановка элементов интерфейса
         self.ChatFrame.grid(row=0, column=0, sticky=NSEW, padx=5, pady=5)
-        self.StatusFrame.grid(row=1, column=0, sticky=EW, padx=5, pady=5)
         self.InputFrame.grid(row=2, column=0, sticky=EW, padx=5, pady=5)
+        self.StatusFrame.grid(row=1, column=0, sticky=EW, padx=5, pady=5)
+        
+        # Скрываем StatusFrame изначально
+        self.StatusFrame.grid_remove()
 
         self.ChatBox.grid(row=0, column=0, sticky=NSEW)
         self.ScrollbarY.grid(row=0, column=1, sticky=NS)
         
-        self.StatusLabel.grid(row=1, column=0, columnspan=3, sticky=W)
         self.AttachButton.grid(row=1, column=0, padx=(0, 5))
         self.InputLine.grid(row=1, column=1, sticky=EW, padx=5)
         self.SendButton.grid(row=1, column=2, padx=(5, 0))
@@ -68,6 +74,9 @@ class Interface:
         
         ## Запускаем первоначальное обновление после отображения окна
         self.ChatWindow.after(100, self.initial_resize)
+
+        ## Периодическая проверка очереди
+        self.CheckQueue()
         
     def DisplayFiles(self):
         ## Удаление старых элементов, если существуют
@@ -79,10 +88,15 @@ class Interface:
         self._file_labels = []
         self._file_buttons = []
         
+        if self.AttachedFiles:
+            self.StatusFrame.grid()
+        else:
+            self.StatusFrame.grid_remove()
+            return
+        
         if not hasattr(self, '_files_container'):
             self._files_container = ttk.Frame(self.StatusFrame)
-            self._files_container.grid(row=0, column=0, sticky=NSEW)
-            
+
             self._files_canvas = Canvas(self._files_container, height=35)
             self._files_scrollbar = ttk.Scrollbar(self._files_container, orient="horizontal", command=self._files_canvas.xview)
             self._scrollable_frame = ttk.Frame(self._files_canvas)
@@ -95,10 +109,11 @@ class Interface:
             self._files_canvas.create_window((0, 0), window=self._scrollable_frame, anchor=NW)
             self._files_canvas.configure(xscrollcommand=self._files_scrollbar.set)
             
-            # Размещаем canvas и скроллбар
+            ## Размещаем виджеты
+            self._files_container.grid(row=0, column=0, sticky=NSEW)
             self._files_canvas.grid(row=0, column=0, sticky=NSEW)
             self._files_scrollbar.grid(row=1, column=0, sticky=EW)
-            
+
             ## Настройка весов для растягивания
             self._files_container.grid_rowconfigure(0, weight=1)
             self._files_container.grid_columnconfigure(0, weight=1)
@@ -107,7 +122,7 @@ class Interface:
             
         for i in range(len(self.AttachedFiles)):
             frame = ttk.Frame(self._scrollable_frame, borderwidth=1, relief=SOLID)
-            label = ttk.Label(frame, text=self.AttachedFiles[i], wraplength=150)  # wraplength для переноса длинных имен
+            label = ttk.Label(frame, text=self.AttachedFiles[i].split('/')[-1], wraplength=150)  # wraplength для переноса длинных имен
             button = ttk.Button(frame, text="X", width=3, command=lambda idx=i: self.RemoveFile(idx))
             
             frame.grid(row=0, column=i, sticky=NS, padx=2, pady=2)
@@ -132,33 +147,49 @@ class Interface:
             self.DisplayFiles()
 
     def AttachFile(self):
-        _filepaths = filedialog.askopenfilenames()
-        ## TODO: сделать добавление путей в список, вывод только имён файлов, проверку на дубликаты
-        print(_filepaths)
-        self.AttachedFiles.append("File.txt")
+        for i in filedialog.askopenfilenames():
+            self.AttachedFiles.append(i)
         self.DisplayFiles()
         
     def InsertTextInChat(self, text):
         self.ChatBox.config(state = "normal")
-        self.StatusLabel.config(text = "Сообщение отправляется...")
         self.ChatBox.insert(END, "\n"+text)
-        self.StatusLabel.config(text = "")
         self.ChatBox.config(state = "disabled")
         self.ChatBox.see(END)
 
+    def ReceiveAnswer(self, message):
+        try:
+            response = "Assistant: "+noGui_app.ask_with_embedded_files(message, self.AttachedFiles)
+        except:
+            response = "Кажется что-то пошло не так"
+        self.queue.put(response)
+
+    def CheckQueue(self):
+        try:
+            while True:
+                response = self.queue.get_nowait()
+                self.InsertTextInChat(response)
+                self.ChatWindow.title(self.AppName)
+        except queue.Empty:
+            pass
+        
+        ## Планируем следующую проверку
+        self.ChatWindow.after(100, self.CheckQueue)
+    
     def SendMessage(self, event=None):
+        self.ChatWindow.title(self.MessageStatus)
+        ## Вывод сообщения пользователя
         message = self.InputLine.get()
         self.InsertTextInChat("User: "+message)
-        
+        for i in range(len(self.AttachedFiles)):
+            self.InsertTextInChat("Прикреплённый файл - "+self.AttachedFiles[i].split('/')[-1])
         self.InputLine.delete(0, END)
         self.AttachedFiles.clear()
         self.DisplayFiles()
-        
-        try:
-            response = "Assistant: "+noGui_app.ask(message)
-        except:
-            response = "Кажется что-то пошло не так"
-        self.InsertTextInChat(response)
+
+        ## Вывод ответа агента
+        ReceiveThread = threading.Thread(target=self.ReceiveAnswer, args=(message, ), name="ReceiveThread", daemon=True)
+        ReceiveThread.start()
 
     def initial_resize(self):
         self.update_widget_sizes()
