@@ -5,8 +5,33 @@ from tkinter import filedialog
 import threading
 import queue
 
-class Interface:
+class Interface: 
     def __init__(self):
+        self.ModelSelectionScreen = Tk()
+        self.AppName = "LM studio model selection"
+        self.ScreenWidth = self.ModelSelectionScreen.winfo_screenwidth()
+        self.ScreenHeight = self.ModelSelectionScreen.winfo_screenheight()
+        self.ModelSelectionScreen.title(self.AppName)
+        
+        self.ModelsFrame = ttk.Frame(self.ModelSelectionScreen, borderwidth=1, relief=SOLID)
+        self.SelectLabel = ttk.Label(self.ModelsFrame, text="Выберите модель ИИ агента:")
+        self.ModelList = Listbox(self.ModelsFrame)
+        self.BtnFrame = ttk.Frame(self.ModelsFrame)
+        self.SelectModelButtton = ttk.Button(self.BtnFrame, text="Выбрать")
+        self.ReloadModelsButtton = ttk.Button(self.BtnFrame, text="Перезагрузить")
+
+        self.ModelSelectionScreen.columnconfigure(0, weight=1)
+        self.ModelSelectionScreen.rowconfigure(0, weight=1)
+        self.ModelSelectionScreen.rowconfigure(1, weight=1)
+
+        self.ModelsFrame.grid()
+        self.SelectLabel.grid(row = 0, column = 0, columnspan = 2)
+        self.ModelList.grid(row = 1, column = 0, sticky = W, padx = 5, pady = 5)
+        self.BtnFrame.grid(row = 1, column = 1, sticky = N, padx = 5)
+        self.SelectModelButtton.grid(sticky = NSEW)
+        self.ReloadModelsButtton.grid(row=1, sticky = NSEW)
+        
+    def CreateChatWindow(self):
         self.ChatWindow = Tk()
         self.AppName = "LM studio chat"
         self.MessageStatus = "[Ожидание ответа агента...]"
@@ -26,6 +51,16 @@ class Interface:
         ChatHeight = int(self.ScreenHeight * self.ChatHeightRatio / 20)
         InputWidth = int(self.ScreenWidth * self.InputWidthRatio / 10)
 
+        #### Виджеты
+        self.ModelsMenu = Menu()
+        self.Models = ["гопота", "синий кит", "китаец"] ## типо получил из запроса
+        for i in range(len(self.Models)):
+            self.ModelsMenu.add_command(label=self.Models[i])
+            
+        self.Menu = Menu()
+        self.Menu.add_cascade(label="Выбор модели", menu=self.ModelsMenu)
+        self.ChatWindow.config(menu=self.Menu)
+        
         self.ChatFrame = ttk.Frame(self.ChatWindow)
         self.ChatBox = Text(self.ChatFrame, width = ChatWidth, height = ChatHeight, state = "disabled")
         self.ScrollbarY = ttk.Scrollbar(self.ChatFrame, orient = "vertical", command = self.ChatBox.yview)
@@ -77,6 +112,7 @@ class Interface:
 
         ## Периодическая проверка очереди
         self.CheckQueue()
+
         
     def DisplayFiles(self):
         ## Удаление старых элементов, если существуют
