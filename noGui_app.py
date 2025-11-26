@@ -40,41 +40,47 @@ def get_available_models():
         return models
     except requests.RequestException as e:
         print(f"Error fetching models: {e}", file=sys.stderr)
-        return []
+        return e
 
+def set_model(model):
+    global SELECTED_MODEL
+    SELECTED_MODEL = model
 
 def select_model():
     """Allow user to select a model from available ones"""
     print("Fetching available models...")
-    models = get_available_models()
+    try:
+        models = get_available_models()
 
-    if not models:
-        print("No models found or couldn't connect to LM Studio")
-        print("Please check if LM Studio is running and the server settings in config.py")
-        return None
-
-    print(f"\nAvailable models ({len(models)}):")
-    for i, model in enumerate(models, 1):
-        print(f"{i}. {model['name']}")
-
-    while True:
-        try:
-            choice = input(f"\nSelect model (1-{len(models)}): ").strip()
-            if not choice:
-                continue
-
-            choice_num = int(choice)
-            if 1 <= choice_num <= len(models):
-                selected = models[choice_num - 1]
-                print(f"Selected model: {selected['name']}")
-                return selected['id']
-            else:
-                print(f"Please enter a number between 1 and {len(models)}")
-        except ValueError:
-            print("Please enter a valid number")
-        except KeyboardInterrupt:
-            print("\nOperation cancelled")
+        if not models:
+            print("No models found or couldn't connect to LM Studio")
+            print("Please check if LM Studio is running and the server settings in config.py")
             return None
+        
+        print(f"\nAvailable models ({len(models)}):")
+        for i, model in enumerate(models, 1):
+            print(f"{i}. {model['name']}")
+
+        while True:
+            try:
+                choice = input(f"\nSelect model (1-{len(models)}): ").strip()
+                if not choice:
+                    continue
+
+                choice_num = int(choice)
+                if 1 <= choice_num <= len(models):
+                    selected = models[choice_num - 1]
+                    print(f"Selected model: {selected['name']}")
+                    return selected['id']
+                else:
+                    print(f"Please enter a number between 1 and {len(models)}")
+            except ValueError:
+                print("Please enter a valid number")
+            except KeyboardInterrupt:
+                print("\nOperation cancelled")
+                return None
+    except Exception as ex:
+        print(ex)
 
 def encode_file_to_b64(path):
     with open(path, "rb") as f:

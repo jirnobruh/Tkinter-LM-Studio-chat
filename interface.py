@@ -15,10 +15,11 @@ class Interface:
         
         self.ModelsFrame = ttk.Frame(self.ModelSelectionScreen, borderwidth=1, relief=SOLID)
         self.SelectLabel = ttk.Label(self.ModelsFrame, text="Выберите модель ИИ агента:")
-        self.ModelList = Listbox(self.ModelsFrame)
+        self.ErrorLabel = ttk.Label(self.ModelSelectionScreen)
+        self.ModelList = Listbox(self.ModelsFrame, selectmode=SINGLE)
         self.BtnFrame = ttk.Frame(self.ModelsFrame)
-        self.SelectModelButtton = ttk.Button(self.BtnFrame, text="Выбрать")
-        self.ReloadModelsButtton = ttk.Button(self.BtnFrame, text="Перезагрузить")
+        self.SelectModelButtton = ttk.Button(self.BtnFrame, text="Выбрать", command=lambda:self.SelectModel(self.ModelList.get(ACTIVE))) ## возвращать название модели
+        self.ReloadModelsButtton = ttk.Button(self.BtnFrame, text="Перезагрузить", command=self.GetAvailableModels)
 
         self.ModelSelectionScreen.columnconfigure(0, weight=1)
         self.ModelSelectionScreen.rowconfigure(0, weight=1)
@@ -30,6 +31,29 @@ class Interface:
         self.BtnFrame.grid(row = 1, column = 1, sticky = N, padx = 5)
         self.SelectModelButtton.grid(sticky = NSEW)
         self.ReloadModelsButtton.grid(row=1, sticky = NSEW)
+        self.ErrorLabel.grid(row = 1, column = 0)
+        
+    def GetAvailableModels(self):
+        try:
+            self.ErrorLabel.config(text="")
+            _raw_models = noGui_app.get_available_models()
+            _models = []
+        
+            for i in range(len(_raw_models)):
+                _models.append(_raw_models[i]['id'])
+            _models = Variable(value=_models)
+            
+            if _models:
+                self.ModelList.config(listvariable=_models)
+            else:
+                self.ErrorLabel.config(text="При получении моделей произошла ошибка:\nСписок моделей оказался пуст\nПроверьте подключение к серверу")
+        except:
+            self.ErrorLabel.config(text="При получении моделей произошла ошибка:\nНевозможно подключиться к серверу\nПроверьте подключение к сети")
+
+    def SelectModel(self, model):
+        noGui_app.set_model(model)
+        self.CreateChatWindow()
+        self.ModelSelectionScreen.destroy()
         
     def CreateChatWindow(self):
         self.ChatWindow = Tk()
@@ -196,7 +220,8 @@ class Interface:
     def ReceiveAnswer(self, message):
         try:
             response = "Assistant: "+noGui_app.ask_with_embedded_files(message, self.AttachedFiles)
-        except:
+        except Exception as ex:
+            print(ex)
             response = "Кажется что-то пошло не так"
         self.queue.put(response)
 
