@@ -32,6 +32,7 @@ class Interface:
         self.SelectModelButtton.grid(sticky = NSEW)
         self.ReloadModelsButtton.grid(row=1, sticky = NSEW)
         self.ErrorLabel.grid(row = 1, column = 0)
+        self.GetAvailableModels()
         
     def GetAvailableModels(self):
         try:
@@ -45,16 +46,23 @@ class Interface:
             
             if _models:
                 self.ModelList.config(listvariable=_models)
+                return(_raw_models)
             else:
                 self.ErrorLabel.config(text="При получении моделей произошла ошибка:\nСписок моделей оказался пуст\nПроверьте подключение к серверу")
+                return []
         except:
             self.ErrorLabel.config(text="При получении моделей произошла ошибка:\nНевозможно подключиться к серверу\nПроверьте подключение к сети")
+            return []
 
     def SelectModel(self, model):
         noGui_app.set_model(model)
-        self.CreateChatWindow()
-        self.ModelSelectionScreen.destroy()
-        
+        try:
+            if self.ModelSelectionScreen.winfo_exists():
+                self.CreateChatWindow()
+                self.ModelSelectionScreen.destroy()
+        except:
+            self.InsertTextInChat("Модель была изменена на "+model)
+                    
     def CreateChatWindow(self):
         self.ChatWindow = Tk()
         self.AppName = "LM studio chat"
@@ -76,25 +84,36 @@ class Interface:
         InputWidth = int(self.ScreenWidth * self.InputWidthRatio / 10)
 
         #### Виджеты
-        self.ModelsMenu = Menu()
-        self.Models = ["гопота", "синий кит", "китаец"] ## типо получил из запроса
-        for i in range(len(self.Models)):
-            self.ModelsMenu.add_command(label=self.Models[i])
-            
-        self.Menu = Menu()
-        self.Menu.add_cascade(label="Выбор модели", menu=self.ModelsMenu)
-        self.ChatWindow.config(menu=self.Menu)
+        # Создаем главное меню
+        self.MainMenu = Menu(self.ChatWindow)
         
+        # Создаем подменю для выбора модели
+        try:
+            _models = self.GetAvailableModels()
+            self.ModelsMenu = Menu(self.MainMenu, tearoff=0)
+            # Добавляем модели в подменю
+            for model in _models:
+                self.ModelsMenu.add_command(label=model['id'], command=lambda model_id=model['id']: self.SelectModel(model_id))
+        except:
+            pass
+        
+        # Добавляем подменю в главное меню
+        self.MainMenu.add_cascade(label="Выбор модели", menu=self.ModelsMenu)
+        
+        # Устанавливаем главное меню для окна
+        self.ChatWindow.config(menu=self.MainMenu)
+        
+        # Остальной код без изменений
         self.ChatFrame = ttk.Frame(self.ChatWindow)
-        self.ChatBox = Text(self.ChatFrame, width = ChatWidth, height = ChatHeight, state = "disabled")
-        self.ScrollbarY = ttk.Scrollbar(self.ChatFrame, orient = "vertical", command = self.ChatBox.yview)
-    
+        self.ChatBox = Text(self.ChatFrame, width=ChatWidth, height=ChatHeight, state="disabled")
+        self.ScrollbarY = ttk.Scrollbar(self.ChatFrame, orient="vertical", command=self.ChatBox.yview)
+        
         self.StatusFrame = ttk.Frame(self.ChatWindow)
         
         self.InputFrame = ttk.Frame(self.ChatWindow)
-        self.InputLine = ttk.Entry(self.InputFrame, width = InputWidth)
-        self.AttachButton = ttk.Button(self.InputFrame, text = "§", width = 4, command=self.AttachFile)
-        self.SendButton = ttk.Button(self.InputFrame, text = ">", width = 4, command=self.SendMessage)
+        self.InputLine = ttk.Entry(self.InputFrame, width=InputWidth)
+        self.AttachButton = ttk.Button(self.InputFrame, text="§", width=4, command=self.AttachFile)
+        self.SendButton = ttk.Button(self.InputFrame, text=">", width=4, command=self.SendMessage)
 
         ## Настройка весов для растягивания
         self.ChatWindow.columnconfigure(0, weight=1)
