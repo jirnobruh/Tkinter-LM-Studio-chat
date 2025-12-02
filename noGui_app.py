@@ -149,7 +149,7 @@ def build_messages_with_files(user_message, file_paths):
     return messages
 
 
-def ask_with_embedded_files(message, file_paths=None, temperature=0.7, max_tokens=4096, timeout=3600):
+def ask_with_embedded_files(message, file_paths=None, temperature=0.7, max_tokens=MAX_TOKENTS, timeout=3600):
     global SELECTED_MODEL
 
     if not SELECTED_MODEL:
